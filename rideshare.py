@@ -7,8 +7,8 @@ import folium
 from streamlit_folium import st_folium
 
 # Configuration
-USER_EMAIL = "your_email@example.com"
-APP_PASSWORD = "your_app_specific_password" # Use an App Password for Gmail/Outlook
+USER_EMAIL = "chris.scholefield@gmail.com"
+APP_PASSWORD = "rerqkytobcqyknrm" # Use an App Password for Gmail/Outlook
 
 def get_route(start_coords, end_coords):
     url = f"http://router.project-osrm.org/route/v1/driving/{start_coords[1]},{start_coords[0]};{end_coords[1]},{end_coords[0]}?overview=full&geometries=geojson"
