@@ -2,3 +2,4 @@ geopy
 folium
 streamlit-folium
 requests
+tzdata
