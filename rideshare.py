@@ -2,12 +2,13 @@ import streamlit as st
 import smtplib
 import requests
 import folium
+import time
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable
 from email.message import EmailMessage
 from geopy.geocoders import Nominatim
 from streamlit_folium import st_folium
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from geopy.exc import GeocoderUnavailable
 
 # --- 1. Configuration & Secrets ---
 try:
@@ -22,15 +23,26 @@ local_tz = ZoneInfo("America/Vancouver")
 now_local = datetime.now(local_tz)
 
 # --- 3. Logic: Routing & Geocoding ---
-@st.cache_data(show_spinner="Calculating route...")
+@st.cache_data(show_spinner="Contacting geocoder...")
 def get_route_data(start_loc, end_loc):
-    # Use a highly specific user_agent and increase timeout to 10 seconds
-    geolocator = Nominatim(user_agent="uberdad_ve7xh_app", timeout=10)
+    # Unique agent is critical
+    geolocator = Nominatim(user_agent="uberdad_sholefield_v1", timeout=10)
     
+    def safe_geocode(query, retries=3):
+        for i in range(retries):
+            try:
+                # Adding a small sleep to respect the 1 req/sec policy
+                time.sleep(1.1) 
+                return geolocator.geocode(query)
+            except (GeocoderTimedOut, GeocoderServiceError) as e:
+                if i == retries - 1:
+                    raise e
+                time.sleep(2) # Wait longer before retrying
+        return None
+
     try:
-        # Geocode with local bias
-        loc1 = geolocator.geocode(f"{start_loc}, BC, Canada")
-        loc2 = geolocator.geocode(f"{end_loc}, BC, Canada")
+        loc1 = safe_geocode(f"{start_loc}, BC, Canada")
+        loc2 = safe_geocode(f"{end_loc}, BC, Canada")
         
         if not loc1:
             return {"error": f"Could not find start location: '{start_loc}'"}
