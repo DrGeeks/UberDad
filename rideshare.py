@@ -58,13 +58,14 @@ def get_route_data(start_loc, end_loc):
         return {"error": "Routing service is currently unavailable."}
         
 def send_email(details):
-    msg = EmailMessage()
-    msg.set_content(f"New Ride Request:\n\n{details}")
-    msg['Subject'] = "UberDad: New Ride Requested!"
-    msg['From'] = USER_EMAIL
-    msg['To'] = USER_EMAIL
+    try:
+        msg = EmailMessage()
+        msg.set_content(f"New Ride Request:\n\n{details}")
+        msg['Subject'] = "UberDad: New Ride Requested!"
+        msg['From'] = USER_EMAIL
+        msg['To'] = USER_EMAIL
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(USER_EMAIL, APP_PASSWORD)
             server.send_message(msg)
         return True, "Success"
