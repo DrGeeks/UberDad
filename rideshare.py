@@ -7,6 +7,7 @@ from geopy.geocoders import Nominatim
 from streamlit_folium import st_folium
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from geopy.exc import GeocoderUnavailable
 
 # --- 1. Configuration & Secrets ---
 try:
@@ -23,19 +24,19 @@ now_local = datetime.now(local_tz)
 # --- 3. Logic: Routing & Geocoding ---
 @st.cache_data(show_spinner="Calculating route...")
 def get_route_data(start_loc, end_loc):
-    """Fetch coordinates and driving route; returns data dict or error string."""
-    geolocator = Nominatim(user_agent="uberdad_app")
+    # Use a highly specific user_agent and increase timeout to 10 seconds
+    geolocator = Nominatim(user_agent="uberdad_ve7xh_app", timeout=10)
     
-    # Geocode with local bias
-    loc1 = geolocator.geocode(f"{start_loc}, BC, Canada")
-    loc2 = geolocator.geocode(f"{end_loc}, BC, Canada")
-    
-    if not loc1:
-        return {"error": f"Could not find start location: '{start_loc}'"}
-    if not loc2:
-        return {"error": f"Could not find destination: '{end_loc}'"}
-
     try:
+        # Geocode with local bias
+        loc1 = geolocator.geocode(f"{start_loc}, BC, Canada")
+        loc2 = geolocator.geocode(f"{end_loc}, BC, Canada")
+        
+        if not loc1:
+            return {"error": f"Could not find start location: '{start_loc}'"}
+        if not loc2:
+            return {"error": f"Could not find destination: '{end_loc}'"}
+
         # OSRM API for driving route
         url = f"http://router.project-osrm.org/route/v1/driving/{loc1.longitude},{loc1.latitude};{loc2.longitude},{loc2.latitude}?overview=full&geometries=geojson"
         r = requests.get(url).json()
@@ -53,8 +54,11 @@ def get_route_data(start_loc, end_loc):
             "start": [loc1.latitude, loc1.longitude],
             "end": [loc2.latitude, loc2.longitude]
         }
-    except Exception:
-        return {"error": "Routing service (OSRM) is currently unavailable."}
+    
+    except GeocoderUnavailable:
+        return {"error": "The geocoding service is currently busy or unavailable. Please wait a few seconds and try again."}
+    except Exception as e:
+        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 # --- 4. Logic: Email Notification ---
 def send_ride_request(details):
