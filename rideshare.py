@@ -4,6 +4,7 @@ from email.message import EmailMessage
 from geopy.geocoders import Nominatim
 import requests
 import folium
+import streamlit as st
 from streamlit_folium import st_folium
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -13,8 +14,13 @@ local_tz = ZoneInfo("America/Vancouver")
 now_local = datetime.now(local_tz)
 
 # Configuration
-USER_EMAIL = "chris.scholefield@gmail.com"
-APP_PASSWORD = "rerqkytobcqyknrm" # Use an App Password for Gmail/Outlook
+# Access secrets via the st.secrets dictionary
+try:
+    USER_EMAIL = st.secrets["USER_EMAIL"]
+    APP_PASSWORD = st.secrets["APP_PASSWORD"]
+except KeyError:
+    st.error("Secrets not configured. Please check your Streamlit Cloud settings or secrets.toml.")
+    st.stop()
 
 def get_route(start_coords, end_coords):
     url = f"http://router.project-osrm.org/route/v1/driving/{start_coords[1]},{start_coords[0]};{end_coords[1]},{end_coords[0]}?overview=full&geometries=geojson"
