@@ -5,6 +5,12 @@ from geopy.geocoders import Nominatim
 import requests
 import folium
 from streamlit_folium import st_folium
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+# Define the timezone
+local_tz = ZoneInfo("America/Vancouver")
+now_local = datetime.now(local_tz)
 
 # Configuration
 USER_EMAIL = "chris.scholefield@gmail.com"
@@ -33,8 +39,9 @@ def send_email(details):
 st.title("🚗 UberDad")
 
 # Input Fields
-date = st.date_input("Requested Date")
-time = st.time_input("Requested Time")
+# Use now_local for defaults
+date = st.date_input("Requested Date", value=now_local.date())
+time = st.time_input("Requested Time", value=now_local.time())
 start_loc = st.text_input("From Location (e.g., 123 Main St)")
 end_loc = st.text_input("To Location")
 
