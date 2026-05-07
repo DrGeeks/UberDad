@@ -22,15 +22,41 @@ except KeyError:
     st.error("Secrets not configured. Please check your Streamlit Cloud settings or secrets.toml.")
     st.stop()
 
-def get_route(start_coords, end_coords):
-    url = f"http://router.project-osrm.org/route/v1/driving/{start_coords[1]},{start_coords[0]};{end_coords[1]},{end_coords[0]}?overview=full&geometries=geojson"
-    r = requests.get(url).json()
-    distance = r['routes'][0]['distance'] / 1000 # convert to km
-    geometry = r['routes'][0]['geometry']['coordinates']
-    # OSRM returns [lon, lat], Folium needs [lat, lon]
-    route_points = [[p[1], p[0]] for p in geometry]
-    return distance, route_points
+@st.cache_data(show_spinner="Searching addresses...")
+def get_route_data(start_loc, end_loc):
+    geolocator = Nominatim(user_agent="uberdad_mock")
+    
+    # Geocode Start
+    loc1 = geolocator.geocode(start_loc)
+    if not loc1:
+        return {"error": f"Could not find start location: '{start_loc}'"}
+        
+    # Geocode End
+    loc2 = geolocator.geocode(end_loc)
+    if not loc2:
+        return {"error": f"Could not find destination: '{end_loc}'"}
 
+    # Calculate Route
+    try:
+        url = f"http://router.project-osrm.org/route/v1/driving/{loc1.longitude},{loc1.latitude};{loc2.longitude},{loc2.latitude}?overview=full&geometries=geojson"
+        r = requests.get(url).json()
+        
+        if 'routes' not in r or not r['routes']:
+            return {"error": "No driving route found between these locations."}
+
+        distance = r['routes'][0]['distance'] / 1000
+        geometry = r['routes'][0]['geometry']['coordinates']
+        route_points = [[p[1], p[0]] for p in geometry]
+        
+        return {
+            "dist": distance,
+            "route": route_points,
+            "start": [loc1.latitude, loc1.longitude],
+            "end": [loc2.latitude, loc2.longitude]
+        }
+    except Exception:
+        return {"error": "Routing service is currently unavailable."}
+        
 def send_email(details):
     msg = EmailMessage()
     msg.set_content(f"New Ride Request:\n\n{details}")
@@ -39,8 +65,11 @@ def send_email(details):
     msg['To'] = USER_EMAIL
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(USER_EMAIL, APP_PASSWORD)
-        server.send_message(msg)
+            server.login(USER_EMAIL, APP_PASSWORD)
+            server.send_message(msg)
+        return True, "Success"
+    except Exception as e:
+        return False, str(e)
 
 st.title("🚗 UberDad")
 
@@ -52,27 +81,27 @@ start_loc = st.text_input("From Location (e.g., 123 Main St)")
 end_loc = st.text_input("To Location")
 
 if start_loc and end_loc:
-    try:
-        geolocator = Nominatim(user_agent="uberdad_mock")
-        loc1 = geolocator.geocode(start_loc)
-        loc2 = geolocator.geocode(end_loc)
+    data = get_route_data(start_loc, end_loc)
+
+if "error" in data:
+        st.error(data["error"])
+    else:
+    if data:
+        cost = round(data['dist'], 1)
+        st.metric("Estimated Cost", f"{cost} Brownie Points")
         
-        if loc1 and loc2:
-            dist_km, route = get_route((loc1.latitude, loc1.longitude), (loc2.latitude, loc2.longitude))
-            cost = round(dist_km, 1)
-            
-            st.metric("Estimated Cost", f"{cost} Brownie Points")
-            
-            # Display Map
-            m = folium.Map(location=[loc1.latitude, loc1.longitude], zoom_start=13)
-            folium.PolyLine(route, color="blue", weight=5, opacity=0.8).add_to(m)
-            folium.Marker([loc1.latitude, loc1.longitude], tooltip="Start").add_to(m)
-            folium.Marker([loc2.latitude, loc2.longitude], tooltip="End").add_to(m)
-            st_folium(m, width=700, height=400)
-            
-            if st.button("Request Ride"):
-                details = f"Date: {date}\nTime: {time}\nFrom: {start_loc}\nTo: {end_loc}\nDistance: {cost} km\nCost: {cost} Brownie Points"
-                send_email(details)
+        m = folium.Map(location=data['start'], zoom_start=13)
+        folium.PolyLine(data['route'], color="blue", weight=5).add_to(m)
+        folium.Marker(data['start'], tooltip="Start").add_to(m)
+        folium.Marker(data['end'], tooltip="End").add_to(m)
+        st_folium(m, width=700, height=400, key="map")
+        
+        if st.button("Request Ride"):
+            details = f"Date: {date}\nTime: {time}\nFrom: {start_loc}\nTo: {end_loc}\nDistance: {cost} km"
+            success, error_msg = send_email(details)
+            if success:
                 st.success("Request sent to Dad!")
-    except Exception as e:
-        st.error("Error calculating route. Please check the addresses.")
+            else:
+                st.error(f"Email Failed: {error_msg}")
+    else:
+        st.error("Could not find addresses or calculate route.")
